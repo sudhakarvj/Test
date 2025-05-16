@@ -1,0 +1,463 @@
+# ------------ Revision History---------------------------------------------
+#  16-05-2025 | v1.0.0.0 | Sudhakar V | Initial Development
+# --------------------------------------------------------------------------
+import sys
+import os
+from os.path import basename, dirname
+import zipfile
+import shutil
+import re
+from iModule.Basic import _open_utf8, _save_utf8, _get_file_list, _element_leveling
+
+os.system("cls")
+
+ToolVersion = "1.0.0.0"
+
+print(f"\n\n\tAccessible_Epub3_Automation v{ToolVersion} is Running...")
+
+if len(sys.argv) != 2:
+    sys.exit("\n\tSyntax: Accessible_Epub3_Automation.exe <epub file>\n")
+
+if not (os.path.isdir(sys.argv[1]) or re.match(r'.*\.epub$', sys.argv[1], re.I)):
+    sys.exit("\n\tSyntax: Accessible_Epub3_Automation.exe <epub file>\n")
+
+# Supporting file checking
+ToolPath = dirname(sys.argv[0])
+ToolPath = re.sub(r'\/', r'\\', ToolPath, 0)
+input_path = dirname(sys.argv[1])
+input_path = re.sub(r'\/', r'\\', input_path, 0)
+
+
+def _epub_extraction():
+    folder_path = sys.argv[1]
+    Epub_filename = folder_path
+    DirZipFile = Epub_filename.replace(".epub", ".zip")
+    filenameoutput = basename(DirZipFile)
+    filenameoutput1 = filenameoutput.replace(".zip", "")
+    OutputDir = dirname(Epub_filename) + "\\" + filenameoutput1
+
+    with zipfile.ZipFile(Epub_filename, "r") as zip_ref:
+        zip_ref.extractall(OutputDir)
+
+    folder_path = os.path.join(OutputDir, 'ops')
+    xhtml_file = _get_file_list(folder_path, 1, 1, '.xhtml$')
+    if xhtml_file:
+        for filename in xhtml_file:
+            xhtml_cnt = _open_utf8(filename)
+
+            if re.search(r'cover\.xhtml', filename, re.I | re.S):
+                xhtml_cnt = re.sub(r'(<title(?: [^>]*)?>)((?:(?!</title>).)*)(</title>)',r'\g<1>Cover Page\g<3>', xhtml_cnt, 1, re.I | re.S)
+                xhtml_cnt = re.sub(r'<body(?: [^>]*)?>',r'<body epub:type="cover" class="cover-pg">', xhtml_cnt, 1, re.I | re.S)
+
+            xhtml_cnt = re.sub(r'<html xmlns="http://www\.w3\.org/1999/xhtml" xmlns:epub="http://www\.idpf\.org/2007/ops" lang="en" xml:lang="en">', r'<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">', xhtml_cnt, 1, re.I | re.S)
+            if not re.search(r'<link rel="stylesheet" type="text/css" href="\.\./styles/9781421450063\.css"/>', xhtml_cnt, re.I | re.S):
+                xhtml_cnt = re.sub(r'</head>',r'<link rel="stylesheet" type="text/css" href="../styles/9781421450063.css"/>\n</head>', xhtml_cnt, 1, re.I | re.S)
+            if not re.search(r'<link rel="stylesheet" type="text/css" href="\.\./styles/synth\.css"/>', xhtml_cnt, re.I | re.S):
+                xhtml_cnt = re.sub(r'</head>',r'<link rel="stylesheet" type="text/css" href="\.\./styles/synth\.css"/>\n</head>', xhtml_cnt, 1, re.I | re.S)
+
+            xhtml_cnt = re.sub(r'<p class="sp1">&#x00A0;</p>', r'', xhtml_cnt, 0, re.I | re.S)
+            xhtml_cnt = re.sub(r'<br/>', r'<span class="break"/>', xhtml_cnt, 0, re.I | re.S)
+            xhtml_cnt = re.sub(r'<a id="pg_([^"]*)"\s*/>', r'<span id="page-\g<1>" role="doc-pagebreak" epub:type="pagebreak" aria-label="Page \g<1>."/>', xhtml_cnt, 0, re.I | re.S)
+            _save_utf8(filename, xhtml_cnt)
+
+    # css_file = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, '.css$')
+    # cover_file = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'cover.xhtml$')
+    # content_opf = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'content.opf$')
+    # toc_ncx = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'toc.ncx$')
+    # other_xhtml = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'other.xhtml$')
+    # index_xhtml = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'index.xhtml$')
+
+    if index_xhtml:
+        os.remove(index_xhtml[0])
+
+    if content_opf:
+        from datetime import datetime
+        current_date = datetime.now()
+        current_time = datetime.now()
+        formatted_date = current_date.strftime('%Y-%m-%d')
+        formatted_time = current_time.strftime('%H:%M:%S')
+        opf_cnt = _open_utf8(content_opf[0])
+        isbn = re.search(r' unique-identifier="isbn(\d+)"', opf_cnt, re.I | re.S)
+        if isbn:
+            isbn = isbn.group(1)
+        else:
+            isbn = 0
+        title = re.search(r'<dc:title>((?:(?!</dc:title>).)*)</dc:title>', opf_cnt, re.I | re.S)
+        if title:
+            title = title.group(1)
+        else:
+            title = ''
+        creator = re.search(r'<dc:creator>((?:(?!</dc:creator>).)*)</dc:creator>', opf_cnt, re.I | re.S)
+        if creator:
+            creator = creator.group(1)
+        else:
+            creator = ''
+        opf_cnt = re.sub(r'<\?xml(?: [^>]*)?>(?:(?!</metadata>).)*</metadata>', rf'''<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:mml="http://www.w3.org/1998/Math/MathML" xmlns:epub="http://www.idpf.org/2007/ops" version="3.0" unique-identifier="p{isbn}">
+    <metadata xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>{title}</dc:title>
+        <dc:date>{formatted_date}</dc:date>
+        <dc:identifier id="p{isbn}">urn:isbn:{isbn}</dc:identifier>
+        <dc:type>Text</dc:type>
+        <dc:rights>Karen J. Wenell</dc:rights>
+        <dc:publisher>Bloomsbury Publishing Plc</dc:publisher>
+        <dc:source>{isbn}</dc:source>
+        <dc:language>en-gb</dc:language>
+        <dc:creator id="creator">{creator}</dc:creator>
+        <meta property="dcterms:modified">{formatted_date}T{formatted_time}Z</meta>
+        <meta name="cover" content="My_Cover_ID"/>
+    </metadata>''', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'<item id="cover-image"', r'<item id="My_Cover_ID"', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'</metadata>', r'''<meta property="schema:accessMode">textual</meta>
+      <meta property="schema:accessMode">visual</meta>
+      <meta property="schema:accessModeSufficient">textual,visual</meta>
+      <meta property="schema:accessibilityFeature">alternativeText</meta>
+      <meta property="schema:accessibilityHazard">none</meta>
+      <meta property="schema:accessibilitySummary">
+    The publication is missing alternative text for some
+complex diagrams.
+   The publication otherwise meets WCAG 2.0 Level A.
+      </meta>
+    </metadata>''', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'<guide(?: [^>]*)?>(?:(?!</guide>).)*</guide>', r'<guide>\n<reference type="cover" title="Cover" href="xhtml/00_cover.xhtml"/>\n<reference type="title" title="Title Page" href="xhtml/02_Title.xhtml"/>\n<reference type="text" title="Start Reading" href="xhtml/chapter01.xhtml"/>\n</guide>', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'<item id="page-template"(?: [^>]*)?>', r'', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'<item(?: [^>]*)? href="[^"]*"(?: [^>]*)?>', lambda m: re.sub(r'\.html', r'.xhtml', m.group(), 1, re.I | re.S), opf_cnt, 0, re.I | re.S)
+        opf_cnt = re.sub(r'<item((?: [^>]*)? href="images/[^"]*"(?: [^>]*)?>)', r'<1item\g<1>', opf_cnt, 0, re.I | re.S)
+        opf_cnt = re.sub(r'(<item(?: [^>]*)? href=")([^"]*"(?: [^>]*)?>)', r'\g<1>xhtml/\g<2>', opf_cnt, 0, re.I | re.S)
+        opf_cnt = re.sub(r'<1item', r'<item', opf_cnt, 0, re.I | re.S)
+        opf_cnt = re.sub(r'(<item id="stylesheet" href=")[^"]*("(?: [^>]*)?>)', r'\g<1>css/style.css\g<2>\n<item id="My_Cover_ID" properties="cover-image" href="images/cover.jpg" media-type="image/jpeg"/>\n<item id="nav" properties="nav" href="xhtml/nav.xhtml" media-type="application/xhtml+xml"/>', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'(<item id="ncx" href=")[^"]*("(?: [^>]*)?>)', r'\g<1>toc.ncx\g<2>', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'(<item(?: [^>]*)? id="body\d+" href="images/logo\.png")(?: [^>]*)?>', r'\g<1> media-type="image/png" />', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'(<item(?: [^>]*)? id="body\d+" href="images/logo\.tif")(?: [^>]*)?>', r'', opf_cnt, 1, re.I | re.S)
+        opf_cnt = re.sub(r'(?m)^[^\S\n]+', r'', opf_cnt, 0, re.I | re.S)
+        opf_cnt = re.sub(r'\n+', r'\n', opf_cnt, 0, re.I | re.S)
+        _save_utf8(content_opf[0], opf_cnt)
+
+    nav_map = ''
+    if toc_ncx:
+        ncx_cnt = _open_utf8(toc_ncx[0])
+        ncx_cnt = re.sub(r'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>', r'<?xml version="1.0" encoding="UTF-8"?>', ncx_cnt, 1, re.I | re.S)
+        ncx_cnt = re.sub(r'<ncx(?: [^>]*)?>', r'<ncx version="2005-1" xml:lang="en" xmlns="http://www.daisy.org/z3986/2005/ncx/">', ncx_cnt, 1, re.I | re.S)
+        ncx_cnt = re.sub(r'(<text>)((?:(?!</text>).)*)(</text>)', lambda m: m.group(1) + re.sub(r'<([a-z0-9]+)(?:(?!<\/\1>).)*<\/\1>', r'', m.group(2), 0, re.I|re.S) + m.group(3), ncx_cnt, 0, re.I | re.S)
+        ncx_cnt = re.sub(r'<text> ',r'<text>', ncx_cnt, 0, re.I | re.S)
+        ncx_cnt = re.sub(r'(<meta name="dtb:uid" content=")(\d+">)',r'\g<1>urn:isbn:\g<2>', ncx_cnt, 1, re.I | re.S)
+        ncx_cnt = re.sub(r'<content(?: [^>]*)? src="[^"]*"(?: [^>]*)?>', lambda m: re.sub(r'\.html', r'.xhtml', m.group(), 1, re.I | re.S), ncx_cnt, 0, re.I | re.S)
+        ncx_cnt = re.sub(r'(<content(?: [^>]*)? src=")([^"]*"(?: [^>]*)?>)', r'\g<1>xhtml/\g<2>', ncx_cnt, 0, re.I | re.S)
+        ncx_cnt = re.sub(r'(<content(?: [^>]*)?)></content>', r'\g<1>/>', ncx_cnt, 0, re.I | re.S)
+        nav = re.search(r'<navMap(?: [^>]*)?>((?:(?!</navMap>).)*)</navMap>', ncx_cnt, re.I | re.S)
+        if nav:
+            nav_map += nav.group(1)
+            nav_map = re.sub(r'(<content src="[^"]*Part_?\d+?\.xhtml"(?: [^>]*)?/>)\s*(<navpoint(?: [^>]*)?>(?:(?!</navpoint>\s*</navpoint>\s*</navpoint>).)*</navpoint>)\s*</navpoint>\s*</navpoint>', r'\g<1>\n<ol>\n\g<2>\n</ol></li>\n</ol></li>', nav_map, 0, re.I | re.S)
+            nav_map = re.sub(r'(<content src="[^"]*chp\d+"(?: [^>]*)?/>)\s*(<navpoint(?: [^>]*)?>((?:(?!</navpoint>\s*</navpoint>).)*)</navpoint>)\s*</navpoint>', r'\g<1>\n<ol>\n\g<2>\n</ol></li>', nav_map, 0, re.I | re.S)
+            nav_map = re.sub(r'<navpoint(?: [^>]*)?>\s*<navLabel>\s*<text>((?:(?!</text>).)*)</text>\s*</navLabel><content src="([^"]*)"/>\s*</navpoint>', r'<li><a href="\g<2>">\g<1></a></li>', nav_map, 0, re.I | re.S)
+            nav_map = re.sub(r'<navpoint(?: [^>]*)?>\s*<navLabel>\s*<text>((?:(?!</text>).)*)</text>\s*</navLabel><content src="([^"]*)"/>', r'<li><a href="\g<2>">\g<1></a>', nav_map, 0, re.I | re.S)
+            nav_map = re.sub(r'<a href="[^"]*"(?: [^>]*)?>', lambda m: re.sub(r'xhtml/', r'', m.group(), 1, re.I | re.S), nav_map, 0, re.I | re.S)
+        _save_utf8(toc_ncx[0], ncx_cnt)
+
+    if css_file:
+        for cfile in css_file:
+            os.remove(cfile)
+
+    if cover_file:
+        os.remove(cover_file[0])
+
+    shutil.copy(css_file_path, OutputDir + r'\OEBPS\style.css')
+    shutil.copy(cover_file_path, OutputDir + r'\OEBPS\00_cover.xhtml')
+
+    if other_xhtml:
+        shutil.copy(other_xhtml[0], OutputDir + r'\OEBPS\nav.xhtml')
+
+    xhtml_file = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, '.xhtml$')
+    if len(xhtml_file) == 0:
+        sys.exit("xhtml files not found...!")
+    for file in xhtml_file:
+        if not re.search(r'cover.xhtml',file,re.I|re.S):
+            file_cnt = _open_utf8(file)
+            # General Cleanup
+            file_cnt = re.sub(r'\n+', r'', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r' {2,}', r' ', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r"(?m)^[^\S\n]+", r'', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r">\s*<", r'>\n<', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r"> {1,}", r'> ', file_cnt, 0, re.I | re.S)
+
+            file_cnt = re.sub(r' xmlns=""', r'', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r' href="[^"]*\.css"', r' href="style.css"', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<\?xml version="1\.0"(?: [^>]*)?>', r'<?xml version="1.0" encoding="UTF-8"?>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<!DOCTYPE html(?: [^>]*)?>', r'', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<html(?: [^>]*)?>', r'<!DOCTYPE html>\n<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="en" lang="en">', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<head>\s*(<title>(?:(?!</title>).)*</title>)', r'<head>\n<meta charset="utf-8"/>\n\g<1>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<link rel="page-template"(?: [^>]*)?>', r'', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<body(?: [^>]*)?>', r'<body>', file_cnt, 1, re.I | re.S)
+
+
+            file_cnt = re.sub(r'(<section epub:type="chapter">\s*)<h2 class="chapter-title" (id="[^"]*"(?: [^>]*)?>\s*<span class="chapter-label">\d*</span>)((?:(?!</h2>).)*)</h2>', r'\g<1><h1 class="chapter-number" \g<2></h1>\n<h2 class="chapter-title">\g<3></h2>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<section epub:type="chapter"(?: [^>]*)?>', r'<section epub:type="chapter" class="chapter" role="doc-chapter">', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<section epub:type="division"((?: [^>]*)?>)', r'<section class="heading"\g<1>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(<section class="heading"(?: [^>]*)?>\s*<h2 class=")sect1-title("(?: [^>]*)?>)', r'\g<1>section-head\g<2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<a id="page([0-9a-z]+)">\s*</a>', r'<span title="\g<1>" epub:type="pagebreak" id="p\g<1>" role="doc-pagebreak"/>', file_cnt, 0, re.I | re.S)
+
+            file_cnt = re.sub(r'<p class="chap-num"((?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h1 class="chap-num"\g<1></h1>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p class="chap-title"((?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h2 class="chap-title"\g<1></h2>', file_cnt, 0, re.I | re.S)
+
+            # Figure Cleanup
+            file_cnt = re.sub(r'<p class="fig"(?: [^>]*)?>(?:(?!</p>).)*</p>', lambda m: re.sub(r'<a(?: [^>]*)?>((?:(?!</a>).)*)</a>', r'\g<1>', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p( class="fig"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<figure\g<1></figure>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p class="fig-caption"(?: [^>]*)?>(?:(?!</p>).)*</p>', lambda m: re.sub(r'<a(?: [^>]*)?>((?:(?!</a>).)*)</a>', r'\g<1>', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p( class="fig-caption"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<figcaption\g<1></figcaption>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'</figure>\s*(<figcaption(?: [^>]*)?>(?:(?!</figcaption>).)*</figcaption>)', r'\g<1>\n</figure>', file_cnt, 0, re.I | re.S)
+
+            file_cnt = re.sub(r'<p class="h1"((?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h3 class="h3"\g<1></h3>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p (class="fm-title"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h2 \g<1></h2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p (class="block"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<blockquote \g<1></blockquote>', file_cnt, 0, re.I | re.S)
+
+            # file_cnt = re.sub(r'<p class="arabic_0">(?:\d+.)?[&#x0A;]+\b((?:(?!</p>).)*)</p>', r'<li>\g<1></li>', file_cnt, 0, re.I | re.S)
+            # file_cnt = re.sub(r'<p class="bullet_0">(?:\d+.)?[(?:&#x2022;|&#x00A0;)]+\b((?:(?!</p>).)*)</p>', r'<li>\g<1></li>', file_cnt, 0, re.I | re.S)
+
+            # Figure Cleanup
+            # file_cnt = re.sub(r'<figure(?: [^>]*)?>(?:(?!</figure>).)*</figure>', lambda m: re.sub(r'<p class="figure-title">((?:(?!</p>).)*)</p>\s*(<img(?: [^>]*)?/>)', r'\g<2>\n<figcaption>\g<1></figcaption>', m.group(), 1, re.I|re.S), file_cnt, 0, re.I | re.S)
+            # Table Cleanup
+            file_cnt = re.sub(r'<table(?: [^>]*)?>(?:(?!</table>).)*</table>', lambda m: re.sub(r'(<td(?: [^>]*)?>)\s*<p>((?:(?!</p>).)*)</p>\s*(</td>)', r'\g<1>\g<2>\g<3>', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<table border="1" cellpadding="0" cellspacing="0">',  r'<table class="table" epub:type="table">', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<tr class="tr">',  r'<tr>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<td class="td">',  r'<td>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<td>\s*<p class="indent">',  r'<td><p class="td">', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(<table class="table" epub:type="table">\s*)(<tr>(?:(?!</tr>).)*</tr>)',  r'\g<1><thead>\n\g<2>\n</thead>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(</thead>)((?:(?!</table>).)*)</table>',  r'\g<1>\n<tbody>\g<2>\n</tbody>\n</table>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'</p>\s*<p class="chap-author">',  r', ', file_cnt, 0, re.I | re.S)
+
+            # Chapter File Cleanup
+            if re.search(r'chapter_?\d+.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="chapter" class="chapter" role="doc-chapter">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Part File Cleanup
+            if re.search(r'part_?(\d+)?.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="part" class="part" role="doc-part">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<p (class="part-num"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h1 \g<1></h1>', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<p (class="part-title"(?: [^>]*)?>(?:(?!</p>).)*)</p>', r'<h2 \g<1></h2>', file_cnt, 0, re.I | re.S)
+
+            # Halftitle File Cleanup
+            if re.search(r'halftitle.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="halftitlepage">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # titlepage File Cleanup
+            if re.search(r'titlepage.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="titlepage">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<img(?: [^>]*)?>', r'<img src="images/logo.png" alt="Bloomsbury Academic" />', file_cnt, 1, re.I | re.S)
+
+            # title File Cleanup
+            if re.search(r'\d+_Title.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="titlepage"><figure class="title_image">\n<img class="title_image" src="../images/title.jpg" alt="The title image for XXX"/>\n</figure>\n</section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Acknowledgement File Cleanup
+            if re.search(r'Acknowledgement.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="acknowledgements" role="doc-acknowledgments">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Dedication File Cleanup
+            if re.search(r'Dedication.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="dedication">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Other File Cleanup
+            if re.search(r'other.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="toc" role="doc-toc">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Preface File Cleanup
+            if re.search(r'preface(\d+)?.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="preface" role="doc-preface">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Foreward File Cleanup
+            if re.search(r'foreward.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="foreword" role="doc-foreword">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Series File Cleanup
+            if re.search(r'series.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="frontmatter">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Introduction File Cleanup
+            if re.search(r'intro.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="introduction" role="doc-introduction">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<h2 class="chap-title"', r'<h2 class="intro-title"', file_cnt, 1, re.I | re.S)
+
+            # Title File Cleanup
+            # if re.search(r'title.xhtml', file, re.I | re.S):
+            #     file_cnt = re.sub(r'<section epub:type="frontmatter">', r'<section epub:type="titlepage">', file_cnt, 1, re.I | re.S)
+            #     file_cnt = re.sub(r'<p class="title_author">', r'<p class="author">', file_cnt, 1, re.I | re.S)
+            #     file_cnt = re.sub(r'<img src="images/logo.jpg" alt="Images">\s*</img>', r'<p class="logo"><img src="images/logo.jpg" alt="t&amp;t clark"/></p>', file_cnt, 1, re.I | re.S)
+
+            # Index File Cleanup
+            if re.search(r'index_?(\d+)?.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="index" role="doc-index">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<p (class="fm-title"(?: [^>]*)?>((?:(?!</p>).)*))</p>', r'<h2 \g<1></h2>\n<p class="index-note">All page numbers refer to the print edition. Please use the links to navigate.</p>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<a(?: [^>]*)?>', lambda m: re.sub(r'#page', r'#p', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+
+            # epdilogue File Cleanup
+            if re.search(r'epdilogue.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="epdilogue" role="doc-epdilogue">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # prologue File Cleanup
+            if re.search(r'prologue.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="prologue" role="doc-prologue">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # epigraph File Cleanup
+            if re.search(r'epigraph.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>', r'<body>\n<section epub:type="epigraph" role="doc-epigraph">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+
+            # Copyright File Cleanup
+            if re.search(r'Copyright.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>',r'<body>\n<section epub:type="copyright-page">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<p class="hardback">((?:(?!</p>).)*)</p>', r'<p class="copyright">', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<p class="noindent">Library of (?:(?!<p class="noindent">LC ).)*<p class="noindent">LC', lambda m: re.sub(r'<p class="noindent">', r'<p class="copyrightb">', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<p class="noindent">', r'<p class="copyright">', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'(<p class="copyright">First published in Great Britain 2024</p>)', r'\g<1>\n<p class="copyrightb">This electronic edition published in 2024 by Bloomsbury Publishing Plc</p>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<p class="copyright">&#x00A0;', r'<p class="copyrightb">&#x00A0;', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<p class="copyright">Bloomsbury Publishing Plc</p>(?:(?!Ireland</p>).)*Ireland</p>', lambda m: re.sub(r'<p class="copyright">', r'<p class="copyrightb">', m.group(), 0, re.I | re.S), file_cnt, 1, re.I | re.S)
+                while re.search(r'<([a-z0-9]+)(?: [^>]*)?>\s*<\/\1>', file_cnt, re.I | re.S):
+                    file_cnt = re.sub(r'<([a-z0-9]+)(?: [^>]*)?>\s*<\/\1>', r'', file_cnt, 0, re.I | re.S)
+
+            # nav File Cleanup
+            if re.search(r'nav.xhtml', file, re.I | re.S):
+                file_cnt = re.sub(r'<body(?: [^>]*)?>((?:(?!</body>).)*)</body>',r'<body>\n<section epub:type="toc" role="doc-toc">\g<1></section>\n</body>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<h2(?: [^>]*)?>(?:(?!</h2>).)*</h2>', lambda m: re.sub(r'\n', r'', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<section epub:type="toc" role="doc-toc">((?:(?!</section>).)*)</section>', r'<section class="tableofcontents">\n<nav epub:type="toc" role="doc-toc" id="toc">\g<1>\n</nav>\n</section>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<p class="toc-othersb">((?:(?!</p>).)*)</p>', r'', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<p class="toc-[^"]*">((?:(?!</p>).)*)</p>', r'<li>\g<1></li>', file_cnt, 0, re.I | re.S)
+                file_cnt = re.sub(r'<span(?: [^>]*)?role="doc-pagebreak"/>', r'', file_cnt, 0, re.I | re.S)
+
+                file_cnt = re.sub(r'(<h2(?: [^>]*)?>(?:(?!</h2>).)*</h2>)', r'\g<1>\n<ol>', file_cnt, 1, re.I | re.S)
+                file_cnt = re.sub(r'<a href="[^"]*"(?: [^>]*)?>',lambda m: re.sub(r' id="[^"]*"', r'', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+
+                file_cnt = re.sub(r'</nav>', r'</ol>\n</nav>', file_cnt, 1, re.I | re.S)
+
+                file_cnt = re.sub(r'(<h2(?: [^>]*)?>(?:(?!</h2>).)*</h2>\s*<ol>)(?:(?!</ol>).)*(</ol>)', rf'\g<1>{nav_map}\g<2>', file_cnt, 1, re.I | re.S)
+
+                file_cnt = re.sub(r'</nav>\s*</section>', r'''</nav>\n<nav epub:type="landmarks" hidden="hidden" class="hidden_content">              
+<ol>
+<li><a epub:type="cover" href="xhtml/cover.xhtml">Cover</a></li>
+<li><a epub:type="frontmatter" href="xhtml/02_Title.xhtml">Frontmatter</a></li>
+<li><a epub:type="toc" href="xhtml/nav.xhtml">Table of Contents</a></li>
+<li><a epub:type="bodymatter" href="xhtml/Chapter_01.xhtml">Begin Reading</a></li>
+</ol>
+</nav>\n</section>''', file_cnt, 1, re.I | re.S)
+
+            file_cnt = re.sub(r'(<div class="bibliography"(?: [^>]*)?>(?:(?!</div>).)*)(</div>)', r'<section epub:type="division" role="doc-bibliography">\n\g<1>\n</section>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<div class="bibliography"((?: [^>]*)?>)((?:(?!<p(?: [^>]*)?>).)*)(<p(?: [^>]*)?>)', r'<h3 class="bibliography"\g<1>\g<2></h3>\g<3>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<a href="[^"]*"(?: [^>]*)?>', lambda m: re.sub(r'\.html', r'.xhtml', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+
+            file_cnt = re.sub(r'(<a href=")(\d+[^"]*"(?: [^>]*)?>)', r'\g<1>../xhtml/\g<2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(<link href=")([^"]*"(?: [^>]*)?>)', r'\g<1>../css/\g<2>', file_cnt, 1, re.I | re.S)
+            file_cnt = re.sub(r'<img(?: [^>]*)?>', lambda m: re.sub(r' (?:width|height)="\d+"', r'', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<table(?: [^>]*)?>', lambda m: re.sub(r' (?:width|border|cellpadding|cellspacing)="\d+"', r' epub:type="table"', m.group(), 1, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(<img src=")([^"]*"(?: [^>]*)?>)', r'\g<1>../\g<2>', file_cnt, 0, re.I | re.S)
+
+            file_cnt = re.sub(r'(<sup>\s*)<a (href="[^"]*")((?: [^>]*)?)>', r'\g<1><a \g<2>\g<3> epub:type="footnote" role="doc-noteref">', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p class="note">\s*<a (href="[^"]*" id="[^"]*">(?:(?!</p>).)*)</p>', r'\n<aside epub:type="footnote" role="doc-footnote"><a role="doc-backlink" \g<1></aside>', file_cnt, 0, re.I | re.S)
+
+            # file_cnt = re.sub(r'(<h3 class="h3"(?: [^>]*)?>(?:(?!<h3 class="h3"(?: [^>]*)?>).)*)(<h3 class="h3"(?: [^>]*)?>)', r'<section#del; epub:type="division" class="section-head">\n\g<1></section>\n<section epub:type="division" class="section-head">\n\g<2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<section class="h1"((?: [^>]*)?>)', r'<section class="subheading" epub:type="division"\g<1>', file_cnt, 0, re.I | re.S)
+            aside_create = ''
+            for footnote in re.finditer(r'<footnote(?: [^>]*)?label=&#x0022;(\d+)&#x0022;(?: [^>]*)?>((?:(?!</footnote>).)*)</footnote>', file_cnt, re.I|re.S):
+                footnote_cnt = footnote.group(2)
+                footnote_cnt = re.sub(r'<(?:\/)?p(?:[^>]*)>',r'',footnote_cnt,0,re.I|re.S)
+                footnote_id = footnote.group(1)
+                replce_id = f'<sup><a href="#fn{footnote_id.zfill(2)}" id="fn{footnote_id.zfill(2)}a" epub:type="footnote" role="doc-noteref">{footnote_id}</a></sup>'
+                file_cnt = file_cnt.replace((footnote.group()),replce_id)
+                aside_create += f'\n<aside id="fn{footnote_id.zfill(2)}" role="doc-footnote"><a role="doc-backlink" href="#fn{footnote_id.zfill(2)}a">{footnote_id}</a>{footnote_cnt}</aside>\n'
+            file_cnt = file_cnt.replace('<h3 class="h3">Notes</h3>','<h3 class="h3">Notes</h3>\n'+aside_create)
+
+            # Post Cleanup
+            file_cnt = re.sub(r' href="[^"]*"', lambda m: re.sub(r'\.html', r'.xhtml', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<a href="(?:https?|www)[^"]*"(?: [^>]*)?>', lambda m: re.sub(r'\.xhtml', r'.html', m.group(), 0, re.I | re.S), file_cnt, 0, re.I | re.S)
+
+            file_cnt = _element_leveling(file_cnt, 'a')
+            file_cnt = re.sub(r'<a2(?: [^>]*)?>((?:(?!</a2>).)*)</a2>', r'\g<1>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'(<\/?a)\d+((?: [^>]*)?>)', r'\g<1>\g<2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<p class="indent">', r'<p>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<i(?: [^>]*)?>', r'<em>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'<b(?: [^>]*)?>', r'<strong>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'</i>', r'</em>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'</b>', r'</strong>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*<a', r'><a', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*<span', r'><span', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*<strong', r'><strong', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*<em', r'><em', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</h1>', r'></h1>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</h2>', r'></h2>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</h3>', r'></h3>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</h4>', r'></h4>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</p>', r'></p>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</li>', r'></li>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'>\s*</sup>', r'></sup>', file_cnt, 0, re.I | re.S)
+            file_cnt = re.sub(r'\n+', r'\n', file_cnt, 0, re.I | re.S)
+            _save_utf8(file, file_cnt)
+
+    # PageID Sequence
+    nav_list = '<nav epub:type="page-list" role="doc-pagelist" aria-label="Print Page List" hidden="hidden" class="hidden_content">\n<ol>\n'
+    for file in xhtml_file:
+        cnt = _open_utf8(file)
+        for span in re.finditer(r'<span(?: [^>]*)?title="([^"]*)"(?: [^>]*)?role="doc-pagebreak"/>', cnt, re.I | re.S):
+            nav_list += f'<li><a href="{basename(file)}#p{span.group(1)}">{span.group(1)}</a></li>\n'
+    nav_list += '</ol>\n</nav>'
+
+    nav_file = _get_file_list(OutputDir + '\\OEBPS\\', 1, 0, 'nav.xhtml$')
+    if nav_file:
+        nav_cnt = _open_utf8(nav_file[0])
+        nav_cnt = re.sub(r'</nav>\s*</section>', rf'</nav>\n{nav_list}\n</section>', nav_cnt, 1, re.I | re.S)
+        _save_utf8(nav_file[0], nav_cnt)
+
+    # Folder Structure Process
+    if not os.path.exists(OutputDir + r'\OEBPS\xhtml'):
+        os.makedirs(OutputDir + r'\OEBPS\xhtml')
+    if not os.path.exists(OutputDir + r'\OEBPS\css'):
+        os.makedirs(OutputDir + r'\OEBPS\css')
+    if os.path.isfile(OutputDir + r'\OEBPS\page-template.xpgt'):
+        os.remove(OutputDir + r'\OEBPS\page-template.xpgt')
+
+    for file_name in os.listdir(OutputDir + r'\OEBPS'):
+        if file_name.endswith('.xhtml'):
+            source_file_path = os.path.join(OutputDir + r'\OEBPS', file_name)
+            target_file_path = os.path.join(OutputDir + r'\OEBPS\xhtml', file_name)
+            shutil.move(source_file_path, target_file_path)
+        if file_name.endswith('.css'):
+            source_file_path = os.path.join(OutputDir + r'\OEBPS', file_name)
+            target_file_path = os.path.join(OutputDir + r'\OEBPS\css', file_name)
+            shutil.move(source_file_path, target_file_path)
+
+    def make_epub_from_folder(folder_path, output_epub_path):
+        # Ensure the output path has the .epub extension
+        if not output_epub_path.endswith('.epub'):
+            output_epub_path += '.epub'
+        # Create a temporary zip file path
+        temp_zip_path = output_epub_path.replace('.epub', '.zip')
+        # Zip the folder
+        shutil.make_archive(temp_zip_path.replace('.zip', ''), 'zip', folder_path)
+        # Rename the zip file to have .epub extension
+        os.rename(temp_zip_path, output_epub_path)
+
+    # ePub Package Creation
+    folder_to_zip = OutputDir
+    folder_name = str(basename(OutputDir)).replace('_epub', '')
+    output_epub_file = dirname(OutputDir) + f'/{folder_name}.epub'
+    make_epub_from_folder(folder_to_zip, output_epub_file)
+
+    # ePub Checker
+    def track_epub_folder(folder_path):
+        try:
+            epubcheck_path = ToolPath + "\\EPUB-Checker.exe"
+            command = [epubcheck_path, '"' + folder_path + '"']  # Enclose folder path in double quotes
+            command_str = ' '.join(command)
+            os.system(command_str)
+            sys.exit("\n\t\t Process completed...!!!\n")  # Option 1: Using sys.exit()
+            raise SystemExit
+        except FileNotFoundError:
+            print("EPUB Checker executable not found. Make sure it is located in the 'tools' folder.")
+
+    folder_path = output_epub_file
+    track_epub_folder(folder_path)
+
+try:
+    _epub_extraction()
+except Exception as e:
+    print(e)
+    sys.exit()
+
+sys.exit("\n\t\t Process completed...!!!\n")
+
