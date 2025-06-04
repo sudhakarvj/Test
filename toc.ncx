@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1" xml:lang="en">
+<head>
+<meta name="dtb:uid" content="9781421424729"/>
+<meta name="dtb:depth" content="1"/>
+<meta name="dtb:totalPageCount" content="1016"/>
+<meta name="dtb:maxPageNumber" content="0"/>
+</head>
+<docTitle>
+<text>Ornithology: Foundation, Analysis, and Application</text>
+</docTitle>
+<navMap>
+<navPoint id="i1" playOrder="1">
+<navLabel>
+<text>Cover</text>
+</navLabel>
+<content src="xhtml/cover.html"/>
+</navPoint>
+<navPoint id="i2" playOrder="2">
+<navLabel>
+<text>Title Page</text>
+</navLabel>
+<content src="xhtml/title.html"/>
+</navPoint>
+<navPoint id="i3" playOrder="3">
+<navLabel>
+<text>Copyright Page</text>
+</navLabel>
+<content src="xhtml/copy.html"/>
+</navPoint>
+<navPoint id="i4" playOrder="4">
+<navLabel>
+<text>Contents</text>
+</navLabel>
+<content src="xhtml/contents.html"/>
+</navPoint>
+<navPoint id="i5" playOrder="5">
+<navLabel>
+<text>List of Contributors</text>
+</navLabel>
+<content src="xhtml/contri.html#contri"/>
+</navPoint>
+<navPoint id="i6" playOrder="6">
+<navLabel>
+<text>Preface</text>
+</navLabel>
+<content src="xhtml/preface.html#preface"/>
+</navPoint>
+<navPoint id="i7" playOrder="7">
+<navLabel>
+<text>Part I. The Big Picture</text>
+</navLabel>
+<content src="xhtml/part1.html#part1"/>
+<navPoint id="i8" playOrder="8">
+<navLabel>
+<text>Chapter 1. What Makes a Bird?</text>
+</navLabel>
+<content src="xhtml/ch1.html#ch1"/>
+</navPoint>
+<navPoint id="i9" playOrder="9">
+<navLabel>
+<text>Chapter 2. Origin and Early Evolution</text>
+</navLabel>
+<content src="xhtml/ch2.html#ch2"/>
+</navPoint>
+<navPoint id="i10" playOrder="10">
+<navLabel>
+<text>Chapter 3 Species Concepts and Speciation Analysis</text>
+</navLabel>
+<content src="xhtml/ch3.html#ch3"/>
+</navPoint>
+<navPoint id="i11" playOrder="11">
+<navLabel>
+<text>Chapter 4. Evolutionary and Ecological Perspectives on Avian Distributions</text>
+</navLabel>
+<content src="xhtml/ch4.html#ch4"/>
+</navPoint>
+</navPoint>
+<navPoint id="i12" playOrder="12">
+<navLabel>
+<text>Part II. Building the Bird</text>
+</navLabel>
+<content src="xhtml/part2.html#part2"/>
+<navPoint id="i13" playOrder="13">
+<navLabel>
+<text>Chapter 5. From Fertilization to Independence</text>
+</navLabel>
+<content src="xhtml/ch5.html#ch5"/>
+</navPoint>
+<navPoint id="i14" playOrder="14">
+<navLabel>
+<text>Chapter 6. Anatomy</text>
+</navLabel>
+<content src="xhtml/ch6.html#ch6"/>
+</navPoint>
+<navPoint id="i15" playOrder="15">
+<navLabel>
+<text>Chapter 7. Physiology</text>
+</navLabel>
+<content src="xhtml/ch7.html#ch7"/>
+</navPoint>
+<navPoint id="i16" playOrder="16">
+<navLabel>
+<text>Chapter 8. Endocrinology</text>
+</navLabel>
+<content src="xhtml/ch8.html#ch8"/>
+</navPoint>
+<navPoint id="i17" playOrder="17">
+<navLabel>
+<text>Chapter 9. Feathers and Molt</text>
+</navLabel>
+<content src="xhtml/ch9.html#ch9"/>
+</navPoint>
+</navPoint>
+<navPoint id="i18" playOrder="18">
+<navLabel>
+<text>Part III. Movement, Perception, and Communication</text>
+</navLabel>
+<content src="xhtml/part3.html#part3"/>
+<navPoint id="i19" playOrder="19">
+<navLabel>
+<text>Chapter 10. Flight and Locomotion</text>
+</navLabel>
+<content src="xhtml/ch10.html#ch10"/>
+</navPoint>
+<navPoint id="i20" playOrder="20">
+<navLabel>
+<text>Chapter 11. Color and Ornamentation</text>
+</navLabel>
+<content src="xhtml/ch11.html#ch11"/>
+</navPoint>
+<navPoint id="i21" playOrder="21">
+<navLabel>
+<text>Chapter 12. The Senses</text>
+</navLabel>
+<content src="xhtml/ch12.html#ch12"/>
+</navPoint>
+<navPoint id="i22" playOrder="22">
+<navLabel>
+<text>Chapter 13. Song and the Brain</text>
+</navLabel>
+<content src="xhtml/ch13.html#ch13"/>
+</navPoint>
+<navPoint id="i23" playOrder="23">
+<navLabel>
+<text>Chapter 14. Acoustic Communication</text>
+</navLabel>
+<content src="xhtml/ch14.html#ch14"/>
+</navPoint>
+</navPoint>
+<navPoint id="i24" playOrder="24">
+<navLabel>
+<text>Part IV. How Birds Live</text>
+</navLabel>
+<content src="xhtml/part4.html#part4"/>
+<navPoint id="i25" playOrder="25">
+<navLabel>
+<text>Chapter 15. Foraging Behavior</text>
+</navLabel>
+<content src="xhtml/ch15.html#ch15"/>
+</navPoint>
+<navPoint id="i26" playOrder="26">
+<navLabel>
+<text>Chapter 16. Reproductive Behavior and Mating Systems</text>
+</navLabel>
+<content src="xhtml/ch16.html#ch16"/>
+</navPoint>
+<navPoint id="i27" playOrder="27">
+<navLabel>
+<text>Chapter 17. Social Systems</text>
+</navLabel>
+<content src="xhtml/ch17.html#ch17"/>
+</navPoint>
+<navPoint id="i28" playOrder="28">
+<navLabel>
+<text>Chapter 18. Habitat Ecology</text>
+</navLabel>
+<content src="xhtml/ch18.html#ch18"/>
+</navPoint>
+<navPoint id="i29" playOrder="29">
+<navLabel>
+<text>Chapter 19. Birds on the Move: Ecology of Migration and Dispersal</text>
+</navLabel>
+<content src="xhtml/ch19.html#ch19"/>
+</navPoint>
+</navPoint>
+<navPoint id="i30" playOrder="30">
+<navLabel>
+<text>Part V. Populations and Assemblages</text>
+</navLabel>
+<content src="xhtml/part5.html#part5"/>
+<navPoint id="i31" playOrder="31">
+<navLabel>
+<text>Chapter 20. Population Structure</text>
+</navLabel>
+<content src="xhtml/ch20.html#ch20"/>
+</navPoint>
+<navPoint id="i32" playOrder="32">
+<navLabel>
+<text>Chapter 21. Population Ecology</text>
+</navLabel>
+<content src="xhtml/ch21.html#ch21"/>
+</navPoint>
+<navPoint id="i33" playOrder="33">
+<navLabel>
+<text>Chapter 22. Assemblages and Communities</text>
+</navLabel>
+<content src="xhtml/ch22.html#ch22"/>
+</navPoint>
+<navPoint id="i34" playOrder="34">
+<navLabel>
+<text>Chapter 23. Parasite and Disease Ecology</text>
+</navLabel>
+<content src="xhtml/ch23.html#ch23"/>
+</navPoint>
+<navPoint id="i35" playOrder="35">
+<navLabel>
+<text>Chapter 24. Modern Climate Change and Birds</text>
+</navLabel>
+<content src="xhtml/ch24.html#ch24"/>
+</navPoint>
+</navPoint>
+<navPoint id="i36" playOrder="36">
+<navLabel>
+<text>Part VI. Management and Conservation</text>
+</navLabel>
+<content src="xhtml/part6.html#part6"/>
+<navPoint id="i37" playOrder="37">
+<navLabel>
+<text>Chapter 25. Extinction and Endangerment</text>
+</navLabel>
+<content src="xhtml/ch25.html#ch25"/>
+</navPoint>
+<navPoint id="i38" playOrder="38">
+<navLabel>
+<text>Chapter 26. In Harm&#8217;s Way</text>
+</navLabel>
+<content src="xhtml/ch26.html#ch26"/>
+</navPoint>
+<navPoint id="i39" playOrder="39">
+<navLabel>
+<text>Chapter 27. Conservation Tools and Strategies</text>
+</navLabel>
+<content src="xhtml/ch27.html#ch27"/>
+</navPoint>
+<navPoint id="i40" playOrder="40">
+<navLabel>
+<text>Chapter 28. Ecosystem and Landscape Management and Planning</text>
+</navLabel>
+<content src="xhtml/ch28.html#ch28"/>
+</navPoint>
+<navPoint id="i41" playOrder="41">
+<navLabel>
+<text>Chapter  29. The Social and Economic Worth of Birds</text>
+</navLabel>
+<content src="xhtml/ch29.html#ch29"/>
+</navPoint>
+</navPoint>
+<navPoint id="i42" playOrder="42">
+<navLabel>
+<text>Part VII. The Science and Practice of Ornithology</text>
+</navLabel>
+<content src="xhtml/part7.html#part7"/>
+<navPoint id="i43" playOrder="43">
+<navLabel>
+<text>Chapter 30. Pathways in Ornithology</text>
+</navLabel>
+<content src="xhtml/ch30.html#ch30"/>
+</navPoint>
+<navPoint id="i44" playOrder="44">
+<navLabel>
+<text>Chapter 31. Fundamental Methods</text>
+</navLabel>
+<content src="xhtml/ch31.html#ch31"/>
+</navPoint>
+</navPoint>
+<navPoint id="i45" playOrder="45">
+<navLabel>
+<text>Index</text>
+</navLabel>
+<content src="xhtml/index.html#index"/>
+</navPoint>
+</navMap>
+</ncx>
