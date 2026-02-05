@@ -1,300 +1,173 @@
-import requests
-import json
-import random
-import string
-import time
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app)
-
-# ==========================================
-# 1. CONFIGURATION (Fill these in)
-# ==========================================
-# ServiceNow
-SN_INSTANCE = 'https://YOUR_INSTANCE.service-now.com'
-SN_USER = 'admin'
-SN_PASS = 'password'
-
-# Microsoft Azure (Entra ID)
-AZURE_TENANT = 'your-tenant-id'
-AZURE_CLIENT_ID = 'your-client-id'
-AZURE_SECRET = 'your-client-secret'
-
-# Duo Security
-DUO_API_HOST = 'api-xxxx.duosecurity.com'
-DUO_IKEY = 'your-integration-key'
-DUO_SKEY = 'your-secret-key'
-
-# ==========================================
-# 2. HELPER FUNCTIONS (The Logic)
-# ==========================================
-
-# --- Helper: Generate a random temporary password ---
-def generate_temp_password():
-    # Azure requires complex passwords (Upper + Lower + Digit + Symbol)
-    chars = string.ascii_letters + string.digits + "!@#$%"
-    return ''.join(random.choice(chars) for i in range(12))
-
-# --- Helper: Create ServiceNow Ticket (Audit Log) ---
-def create_audit_ticket(short_desc, work_notes):
-    url = f"{SN_INSTANCE}/api/now/table/incident"
-    payload = {
-        "short_description": short_desc,
-        "description": "Automated Action by Chatbot.",
-        "work_notes": work_notes,
-        "category": "network",
-        "contact_type": "virtual_agent",
-        "state": "6", # "6" usually means Resolved (verify your instance codes)
-        "close_code": "Solved (Permanently)",
-        "close_notes": "Bot performed action successfully."
-    }
-    try:
-        response = requests.post(url, auth=(SN_USER, SN_PASS), json=payload)
-        if response.status_code == 201:
-            return response.json()['result']['number']
-    except Exception as e:
-        print(f"SN Error: {e}")
-    return "TICKET_FAILED"
-
-# --- ACTION 1: Azure Password Reset ---
-def perform_azure_reset(user_email):
-    new_password = generate_temp_password()
-    
-    # 1. Get Azure Access Token (Real logic)
-    token_url = f"https://login.microsoftonline.com/{AZURE_TENANT}/oauth2/v2.0/token"
-    token_data = {
-        'grant_type': 'client_credentials',
-        'client_id': AZURE_CLIENT_ID,
-        'client_secret': AZURE_SECRET,
-        'scope': 'https://graph.microsoft.com/.default'
-    }
-    
-    # Mocking the actual API call for safety in this example
-    # In production, uncomment the requests.post below
-    # token_r = requests.post(token_url, data=token_data)
-    # token = token_r.json().get('access_token')
-    
-    # 2. Call Graph API to reset password
-    # graph_url = f"https://graph.microsoft.com/v1.0/users/{user_email}"
-    # password_payload = {
-    #     "passwordProfile": {
-    #         "forceChangePasswordNextSignIn": True,
-    #         "password": new_password
-    #     }
-    # }
-    # requests.patch(graph_url, json=password_payload, headers={'Authorization': f'Bearer {token}'})
-    
-    print(f"[MOCK] Reseting Azure Password for {user_email} to {new_password}")
-    return new_password
-
-# --- ACTION 2: Duo Enrollment ---
-def perform_duo_enrollment(user_email):
-    # Real logic would use the 'duo_client' python library or REST API
-    # POST /admin/v1/users to create user
-    # POST /admin/v1/users/{user_id}/phones to add phone
-    # POST /admin/v1/users/{user_id}/activation_url to send SMS
-    
-    print(f"[MOCK] Sending Duo Enrollment SMS to {user_email}")
-    return "SMS Sent"
-
-# --- ACTION 3: Cisco VPN Reset ---
-def perform_vpn_reset(user_email):
-    # This usually requires SSH into the Cisco ASA or an API Gateway
-    # Example: Disconnect-VPNUser -UserName user_email
-    
-    print(f"[MOCK] Kicking VPN session for {user_email}")
-    return "Session Cleared"
-
-
-# ==========================================
-# 3. THE BRAIN (Intent & Orchestration)
-# ==========================================
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    data = request.json
-    message = data.get('message', '').lower()
-    user_email = data.get('email', 'test.user@company.com') # In real widget, pass this from Portal
-    
-    response_text = ""
-    action_log = ""
-    action_type = ""
-
-    # --- SCENARIO 1: PASSWORD RESET ---
-    if "password" in message:
-        action_type = "Password Reset"
-        
-        # 1. Do the Action
-        new_pass = perform_azure_reset(user_email)
-        
-        # 2. Prepare User Response (Display Password)
-        response_text = f"✅ SUCCESS: I have reset your Azure AD password.\n\nYour new temporary password is: {new_pass}\n\nPlease perform a password change immediately upon login."
-        action_log = f"Bot reset password for {user_email}. Temp password provided in chat."
-
-    # --- SCENARIO 2: DUO ENROLLMENT ---
-    elif "duo" in message:
-        action_type = "Duo Enrollment"
-        
-        # 1. Do the Action
-        status = perform_duo_enrollment(user_email)
-        
-        # 2. Prepare User Response
-        response_text = "✅ SUCCESS: I have triggered the Duo enrollment process. Please check your phone for an SMS/Email with the setup link."
-        action_log = f"Bot triggered Duo enrollment SMS for {user_email}."
-
-    # --- SCENARIO 3: CISCO VPN ---
-    elif "vpn" in message or "cisco" in message:
-        action_type = "VPN Reset"
-        
-        # 1. Do the Action
-        status = perform_vpn_reset(user_email)
-        
-        # 2. Prepare User Response
-        response_text = "✅ SUCCESS: I have cleared your hung VPN session on the Cisco gateway. Please wait 30 seconds and try connecting again."
-        action_log = f"Bot cleared VPN session for {user_email}."
-        
-    else:
-        return jsonify({"text": "I can help with: 1. Password Reset, 2. Duo Enrollment, 3. Cisco VPN issues."})
-
-    # --- FINAL STEP: CREATE TICKET (After Action) ---
-    # We create the ticket silently in the background
-    ticket_num = create_audit_ticket(
-        short_desc=f"Bot Action: {action_type} for {user_email}", 
-        work_notes=action_log
-    )
-    
-    # Append ticket info to the user response
-    response_text += f"\n\n(Audit Ticket {ticket_num} has been logged and closed)."
-
-    return jsonify({"text": response_text})
-
-if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-
-
-A. HTML Template
+Html
 
 <div class="bot-container">
-  <div class="chat-header">IT Support Bot</div>
-  
-  <div class="chat-window" id="chatWindow">
-    <div ng-repeat="msg in c.messages" 
-         ng-class="{'user-msg': msg.author=='me', 'bot-msg': msg.author=='bot'}">
-      <div class="bubble">{{msg.text}}</div>
-    </div>
-  </div>
 
-  <div class="chat-input-area">
-    <input type="text" 
-           ng-model="c.userMessage" 
-           ng-keydown="c.checkEnter($event)"
-           placeholder="Type 'Reset password' or 'VPN issue'...">
-    <button ng-click="c.sendMessage()">Send</button>
+  <!-- 1. The Launcher Button (Visible when chat is closed) -->
+  <button ng-show="!c.chatOpen" class="launcher-btn shadow" ng-click="c.toggleChat()">
+    <i class="fa fa-comments"></i> Support
+  </button>
+
+  <!-- 2. The Chat Window (Visible when chat is open) -->
+  <div ng-show="c.chatOpen" class="panel panel-primary chat-window shadow">
+    
+    <!-- Header with Minimize Button -->
+    <div class="panel-heading chat-header">
+      <h3 class="panel-title">
+        <i class="fa fa-robot"></i> IT Assistant
+      </h3>
+      <button class="minimize-btn" ng-click="c.toggleChat()">
+        <i class="fa fa-minus"></i>
+      </button>
+    </div>
+
+    <!-- Your Existing Chat Body -->
+    <div class="panel-body chat-body" id="chatContainer">
+      <div ng-repeat="msg in c.messages" class="message-row" ng-class="{'text-right': msg.author=='User'}">
+        <div class="message-bubble" ng-class="msg.author=='User' ? 'bg-primary text-white' : 'bg-light'">
+          {{msg.text}}
+        </div>
+      </div>
+    </div>
+
+    <!-- Your Existing Input Area -->
+    <div class="panel-footer">
+      <form ng-submit="c.sendMessage()">
+        <div class="input-group">
+          <input type="text" class="form-control" ng-model="c.userText" placeholder="Type here...">
+          <span class="input-group-btn">
+            <button class="btn btn-primary" type="submit">Send</button>
+          </span>
+        </div>
+      </form>
+    </div>
+    
   </div>
 </div>
 
-B. CSS (SCSS)
+CSS:
 
+/* Fix the position to bottom right */
 .bot-container {
-  width: 350px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  background: #fff;
-  float: right; /* Keeps it to the right */
-  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999; /* Stay on top of everything */
+  font-family: SourceSansPro, "Helvetica Neue", Arial;
 }
 
-.chat-header {
-  background-color: #2e3b4e; /* ServiceNow Dark Blue */
+/* The Round Launcher Button */
+.launcher-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 30px; /* Makes it round */
+  background-color: #2e8ef8;
   color: white;
-  padding: 10px;
-  font-weight: bold;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform 0.2s;
 }
 
+.launcher-btn:hover {
+  transform: scale(1.1);
+}
+
+/* The Main Window */
 .chat-window {
-  height: 300px;
+  width: 350px;
+  height: 500px;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+/* Header Styling */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.minimize-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-weight: bold;
+}
+
+/* Scrollable Chat Area */
+.chat-body {
+  flex: 1;
   overflow-y: auto;
   padding: 10px;
-  background-color: #f5f5f5;
+  background: #fff;
 }
 
-.user-msg { text-align: right; margin: 5px 0; }
-.bot-msg { text-align: left; margin: 5px 0; }
-
-.bubble {
+/* Chat Bubbles */
+.message-row { margin-bottom: 10px; }
+.message-bubble {
   display: inline-block;
   padding: 8px 12px;
   border-radius: 15px;
   max-width: 80%;
 }
+.bg-light { background-color: #f1f1f1; color: black; }
+.text-white { color: white; }
+.shadow { box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
 
-.user-msg .bubble { background-color: #007bff; color: white; }
-.bot-msg .bubble { background-color: #e0e0e0; color: black; }
+Client:
 
-.chat-input-area {
-  padding: 10px;
-  border-top: 1px solid #eee;
-  display: flex;
-}
-
-input { flex-grow: 1; padding: 5px; border-radius: 4px; border: 1px solid #ddd; }
-button { margin-left: 5px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
-
-C. Client Script
-
-api.controller = function($http, $scope) {
+api.controller = function($scope, $timeout) {
   var c = this;
   
-  // 1. Initialize Chat
-  c.messages = [];
-  c.messages.push({author: 'bot', text: 'Hello! I can help with Password Reset, Duo, or VPN.'});
-  c.userMessage = '';
+  // 1. Initialize State (False means start minimized)
+  c.chatOpen = false; 
 
-  // 2. Function to Send Message
-  c.sendMessage = function() {
-    if (!c.userMessage) return;
+  c.messages = [
+    { text: "Hello! I can help with Password Reset, Duo, or VPN. What do you need?", author: "Bot" }
+  ];
+  c.userText = "";
 
-    // Add User message to UI
-    c.messages.push({author: 'me', text: c.userMessage});
+  // 2. Add the Toggle Function
+  c.toggleChat = function() {
+    c.chatOpen = !c.chatOpen;
     
-    // Prepare Payload
-    // We get the Logged-in User's email from ServiceNow automatically ($scope.user.email)
-    var payload = {
-      "message": c.userMessage,
-      "email": $scope.user.email || "guest@example.com" 
-    };
+    // Auto-scroll to bottom when opening
+    if(c.chatOpen) {
+        $timeout(scrollToBottom, 100);
+    }
+  };
 
-    var currentMsg = c.userMessage; // Store temp
-    c.userMessage = ''; // Clear input
+  c.sendMessage = function() {
+    if (!c.userText) return;
 
-    // 3. CALL EXTERNAL PYTHON BOT
-    // REPLACE THIS URL with your ngrok or server URL
-    var botURL = "https://a1b2-c3d4.ngrok.io/chat"; 
+    // Add User Message
+    c.messages.push({ text: c.userText, author: "User" });
+    var userMsg = c.userText;
+    c.userText = "";
+    
+    scrollToBottom();
 
-    $http.post(botURL, payload).then(function(response) {
-      // Success: Add Bot Response to UI
-      c.messages.push({author: 'bot', text: response.data.text});
-      
-      // Auto-scroll to bottom
-      setTimeout(function(){
-          var chatWindow = document.getElementById('chatWindow');
-          chatWindow.scrollTop = chatWindow.scrollHeight;
-      }, 100);
+    // API Call to your Azure Bot
+    var botURL = "https://YOUR-APP-NAME.azurewebsites.net/chat"; 
 
-    }, function(error) {
-      // Error handling
-      console.log("Bot Error:", error);
-      c.messages.push({author: 'bot', text: "Error connecting to bot server."});
+    $scope.server.get({
+        action: 'chat_proxy',
+        message: userMsg,
+        endpoint: botURL
+    }).then(function(r) {
+        c.messages.push({ text: r.data.answer, author: "Bot" });
+        scrollToBottom();
     });
   };
 
-  // Allow pressing "Enter" key
-  c.checkEnter = function(keyEvent) {
-    if (keyEvent.which === 13) c.sendMessage();
-  };
+  function scrollToBottom() {
+    $timeout(function() {
+      var chatContainer = document.getElementById("chatContainer");
+      if(chatContainer) {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }, 0);
+  }
 };
-
