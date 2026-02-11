@@ -1,89 +1,125 @@
-requirements.txt
-
-flask
-flask-cors
-langchain-openai
-langchain-core
-docx2txt
-requests
-python-dotenv
-
-.env
-
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=your_key_here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
-AZURE_DEPLOYMENT_NAME=gpt-4o-mini
-
-# ServiceNow
-SNOW_INSTANCE_URL=https://your-instance.service-now.com
-SNOW_API_USER=bot_integration_user
-SNOW_API_PASSWORD=your_password
-
-app.py
+agents.py
 
 import os
-import uuid
 import logging
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from dotenv import load_dotenv
-from agents import MasterAgent
+from langchain_openai import AzureChatOpenAI
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.memory import ConversationBufferMemory
+from servicenow_client import ServiceNowClient
+from sop_loader import SOPLoader
 
-# Load Environment Variables
-load_dotenv()
-
-# Setup Logging
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-
-# Allow CORS for your ServiceNow Instance
-CORS(app, resources={r"/chat": {"origins": "*"}}) 
-
-# In-memory session storage
-chat_sessions = {}
-
-@app.route('/health', methods=['GET'])
-def health():
-    return jsonify({"status": "online", "model": "gpt-4o-mini"}), 200
-
-@app.route('/chat', methods=['POST'])
-def chat():
-    try:
-        data = request.json
-        user_message = data.get('message')
-        session_id = data.get('session_id')
-        user_id = data.get('user_id')  # sys_id from ServiceNow
-
-        # Create new session if needed
-        if not session_id or session_id not in chat_sessions:
-            session_id = str(uuid.uuid4())
-            logger.info(f"New session: {session_id} for user: {user_id}")
-            chat_sessions[session_id] = MasterAgent(session_id, user_id)
-
-        agent = chat_sessions[session_id]
+class MasterAgent:
+    def __init__(self, session_id, user_id):
+        self.session_id = session_id
+        self.user_id = user_id
         
-        # Process Message
-        result = agent.process_request(user_message)
+        # 1. Load SOP Context (The Knowledge Base)
+        loader = SOPLoader()
+        self.sop_context = loader.load_sops()
+        
+        self.memory = ConversationBufferMemory(return_messages=True)
+        
+        # 2. Initialize LLM (Temperature 0 for strictness)
+        self.llm = AzureChatOpenAI(
+            azure_deployment=os.getenv("AZURE_DEPLOYMENT_NAME"),
+            openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+            temperature=0
+        )
+        
+        self.snow_client = ServiceNowClient()
 
-        # Cleanup if ticket created (start fresh next time)
-        if result.get('action_taken') == 'incident_created':
-            del chat_sessions[session_id]
+    # --- Implementation Actions ---
+    def execute_password_reset(self, user_profile):
+        logger.info(f"Action: Resetting Password for {user_profile['email']}")
+        return True
 
-        return jsonify({
-            "response": result['text'],
-            "session_id": session_id,
-            "action_taken": result.get('action_taken'),
-            "ticket_number": result.get('ticket_number')
+    def execute_duo_enrollment(self, user_profile):
+        logger.info(f"Action: Enrolling Duo for {user_profile['user_name']}")
+        return True
+
+    def process_request(self, user_message):
+        self.memory.chat_memory.add_user_message(user_message)
+        history = self.memory.chat_memory.messages
+
+        # --- SYSTEM PROMPT ---
+        system_prompt = f"""
+        You are a dedicated IT Service Desk Assistant.
+        
+        --- AUTHORIZED KNOWLEDGE BASE (SOPs) ---
+        {self.sop_context}
+        ----------------------------------------
+
+        --- YOUR INSTRUCTIONS ---
+        1. **Scope of Support:** You are ONLY allowed to answer questions about:
+           - Software installation procedures found in the SOPs.
+           - IT actions (Password Resets, Duo Enrollment).
+           - Troubleshooting contained in the SOPs.
+        
+        2. **Refusal Protocol:** If the user asks about General Knowledge (e.g., "Who is the president?", "Weather", "Jokes"), you MUST REFUSE.
+           - Refusal Message: "I am sorry, but I can only assist with IT Service Desk inquiries."
+
+        3. **Universal Installation Rule:** - The SOP for "Adobe Acrobat" is the MASTER TEMPLATE.
+           - If the user asks to install *ANY* software (e.g., VS Code, Zoom, Python), use the "Adobe Acrobat" steps but REPLACE "Adobe Acrobat" with the requested software name.
+
+        4. **Action Triggers:**
+           - If user needs password reset -> Output: "TRIGGER_ACTION: PASSWORD_RESET"
+           - If user needs Duo enrollment -> Output: "TRIGGER_ACTION: DUO_ENROLLMENT"
+        """
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="history"),
+            ("human", "{input}")
+        ])
+
+        # Run Chain
+        chain = prompt | self.llm
+        response = chain.invoke({
+            "history": history,
+            "input": user_message
         })
+        
+        bot_reply = response.content.strip()
+        
+        # --- Handle Actions vs. Text ---
+        action_taken = None
+        ticket_number = None
 
-    except Exception as e:
-        logger.error(f"Error: {str(e)}")
-        return jsonify({"error": "Internal Server Error"}), 500
+        if "TRIGGER_ACTION:" in bot_reply:
+            action_type = bot_reply.split(":")[1].strip()
+            user_profile = self.snow_client.get_user_profile(self.user_id)
+            
+            if not user_profile:
+                final_response = "I couldn't verify your identity in ServiceNow. Please contact support."
+            else:
+                if action_type == "PASSWORD_RESET":
+                    self.execute_password_reset(user_profile)
+                    desc = "Automated Password Reset"
+                    final_response = f"I have initiated the password reset for {user_profile['user_name']}."
+                elif action_type == "DUO_ENROLLMENT":
+                    self.execute_duo_enrollment(user_profile)
+                    desc = "Automated Duo Enrollment"
+                    final_response = f"I have started the Duo enrollment for {user_profile['user_name']}."
+                else:
+                    desc = "General Request"
+                    final_response = "I am creating a ticket for this request."
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000)
+                ticket_number = self.snow_client.create_incident(
+                    caller_id=self.user_id,
+                    short_description=desc,
+                    description=f"User Message: {user_message}\nAction: {action_type}",
+                    chat_history=history
+                )
+                
+                if ticket_number:
+                    final_response += f" (Ticket: {ticket_number})"
+                    action_taken = "incident_created"
+            
+            self.memory.chat_memory.add_ai_message(final_response)
+            return {"text": final_response, "action_taken": action_taken, "ticket_number": ticket_number}
 
+        else:
+            self.memory.chat_memory.add_ai_message(bot_reply)
+            return {"text": bot_reply, "action_taken": None, "ticket_number": None}
