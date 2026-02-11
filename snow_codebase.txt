@@ -1,27 +1,47 @@
 import os
-import docx2txt
+import requests
+import json
 import logging
 
 logger = logging.getLogger(__name__)
 
-class SOPLoader:
-    def __init__(self, sop_folder="./SOP"):
-        self.sop_folder = sop_folder
+class ServiceNowClient:
+    def __init__(self):
+        self.instance_url = os.getenv("SNOW_INSTANCE_URL")
+        self.user = os.getenv("SNOW_API_USER")
+        self.password = os.getenv("SNOW_API_PASSWORD")
+        self.headers = {"Content-Type": "application/json", "Accept": "application/json"}
 
-    def load_sops(self):
-        combined_text = ""
+    def get_user_profile(self, user_sys_id):
+        url = f"{self.instance_url}/api/now/table/sys_user/{user_sys_id}"
+        params = {"sysparm_fields": "user_name,email,first_name,last_name"}
         try:
-            if not os.path.exists(self.sop_folder):
-                os.makedirs(self.sop_folder)
-                return "No SOP documents found."
-
-            for filename in os.listdir(self.sop_folder):
-                if filename.endswith(".docx"):
-                    file_path = os.path.join(self.sop_folder, filename)
-                    text = docx2txt.process(file_path)
-                    combined_text += f"\n--- SOP: {filename} ---\n{text}\n"
-            
-            return combined_text if combined_text else "No content found in SOPs."
+            response = requests.get(url, auth=(self.user, self.password), headers=self.headers, params=params)
+            if response.status_code == 200:
+                result = response.json().get('result')
+                if result: return result
+            return None
         except Exception as e:
-            logger.error(f"Error loading SOPs: {e}")
-            return "Error loading SOP documents."
+            logger.error(f"SNOW Error: {e}")
+            return None
+
+    def create_incident(self, caller_id, short_description, description, chat_history):
+        url = f"{self.instance_url}/api/now/table/incident"
+        notes = "\n".join([f"{m.type}: {m.content}" for m in chat_history])
+        
+        payload = {
+            "caller_id": caller_id,
+            "short_description": short_description,
+            "description": description,
+            "work_notes": notes,
+            "category": "software",
+            "contact_type": "virtual_agent"
+        }
+        
+        try:
+            response = requests.post(url, auth=(self.user, self.password), headers=self.headers, data=json.dumps(payload))
+            if response.status_code == 201:
+                return response.json()['result']['number']
+            return None
+        except Exception:
+            return None
