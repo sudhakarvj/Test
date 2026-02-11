@@ -1,176 +1,88 @@
-import os
-import logging
-from typing import TypedDict, Annotated, List, Union
-from langchain_openai import AzureChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, BaseMessage
-from langgraph.graph import StateGraph, END
-from servicenow_client import ServiceNowClient
-from sop_loader import SOPLoader
-
-logger = logging.getLogger(__name__)
-
-# --- 1. Define the State ---
-class AgentState(TypedDict):
-    messages: List[BaseMessage]
-    action_taken: str | None
-    ticket_number: str | None
-    user_id: str
-
-# --- 2. The Master Agent Class ---
-class MasterAgent:
-    def __init__(self, session_id, user_id):
-        self.session_id = session_id
-        self.user_id = user_id
-        
-        # Load Knowledge Base
-        loader = SOPLoader()
-        self.sop_context = loader.load_sops()
-        
-        # Initialize LLM
-        self.llm = AzureChatOpenAI(
-            azure_deployment=os.getenv("AZURE_DEPLOYMENT_NAME"),
-            openai_api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
-            temperature=0
-        )
-        
-        self.snow_client = ServiceNowClient()
-        self.workflow = self._build_graph()
-
-    # --- 3. Nodes ( The Workers ) ---
-
-    def call_model(self, state: AgentState):
-        """
-        The Brain: Decides what to do based on the SOP and User Input.
-        """
-        messages = state['messages']
-        
-        system_prompt = f"""
-        You are an IT Service Desk Agent.
-        
-        --- KNOWLEDGE BASE (SOPs) ---
-        {self.sop_context}
-        -----------------------------
-
-        --- INSTRUCTIONS ---
-        1. **Scope:** Answer strictly based on the SOPs. Refuse general knowledge questions.
-        2. **Universal Rule:** Use the "Adobe Acrobat" SOP as the template for ALL software installation queries.
-           - Replace "Adobe Acrobat" with the user's requested software name.
-        3. **Action Triggers:** - If the user needs a Password Reset, output strictly: "TRIGGER_ACTION: PASSWORD_RESET"
-           - If the user needs Duo Enrollment, output strictly: "TRIGGER_ACTION: DUO_ENROLLMENT"
-        """
-        
-        # Add System Message at the beginning if not present
-        if not isinstance(messages[0], SystemMessage):
-            messages.insert(0, SystemMessage(content=system_prompt))
-            
-        response = self.llm.invoke(messages)
-        return {"messages": [response]}
-
-    def execute_action(self, state: AgentState):
+def execute_action(self, state: AgentState):
         """
         The Hands: Executes the action (Reset/Enroll) and creates a ticket.
         """
         last_message = state['messages'][-1].content
-        action_type = last_message.split(":")[1].strip()
+        # Extract action safely
+        if ":" in last_message:
+            action_type = last_message.split(":")[1].strip()
+        else:
+            action_type = "GENERAL_REQUEST"
+
         user_id = state['user_id']
         
-        # Fetch Profile
+        # 1. Fetch Profile
         user_profile = self.snow_client.get_user_profile(user_id)
         
+        # --- LOGIC FIX START ---
+        
+        # Case A: Identity Verification Failed
+        if not user_profile:
+            return {
+                "messages": [AIMessage(content="I couldn't verify your identity in ServiceNow. Please ensure your account is active or contact the Help Desk manually.")],
+                "action_taken": None,  # IMPORTANT: Send None so frontend doesn't show "Ticket Created"
+                "ticket_number": None
+            }
+
+        # Case B: Identity Verified - Proceed with Action
         response_text = ""
         ticket_number = None
-        action_taken = "incident_created"
+        action_taken = None 
 
-        if not user_profile:
-            response_text = "I couldn't verify your identity in ServiceNow."
+        if action_type == "PASSWORD_RESET":
+            logger.info(f"Resetting password for {user_profile['email']}")
+            response_text = f"I have initiated the password reset for {user_profile['user_name']}."
+            short_desc = "Automated Password Reset"
+        elif action_type == "DUO_ENROLLMENT":
+            logger.info(f"Enrolling Duo for {user_profile['user_name']}")
+            response_text = f"I have started the Duo enrollment for {user_profile['user_name']}."
+            short_desc = "Automated Duo Enrollment"
         else:
-            if action_type == "PASSWORD_RESET":
-                # Call Reset API (Placeholder)
-                logger.info(f"Resetting password for {user_profile['email']}")
-                response_text = f"I have initiated the password reset for {user_profile['user_name']}."
-                short_desc = "Automated Password Reset"
-            elif action_type == "DUO_ENROLLMENT":
-                # Call Duo API (Placeholder)
-                logger.info(f"Enrolling Duo for {user_profile['user_name']}")
-                response_text = f"I have started the Duo enrollment for {user_profile['user_name']}."
-                short_desc = "Automated Duo Enrollment"
-            else:
-                response_text = "I am creating a support ticket."
-                short_desc = "General Request"
+            response_text = "I am creating a support ticket for your request."
+            short_desc = "General Request"
 
-            # Create Incident
-            ticket_number = self.snow_client.create_incident(
-                caller_id=user_id,
-                short_description=short_desc,
-                description=f"Action: {action_type}",
-                chat_history=state['messages']
-            )
-            
-            if ticket_number:
-                response_text += f" (Ticket: {ticket_number})"
+        # 2. Create Incident
+        ticket_number = self.snow_client.create_incident(
+            caller_id=user_id,
+            short_description=short_desc,
+            description=f"Action: {action_type}\nChat Context: {state['messages']}",
+            chat_history=state['messages']
+        )
+        
+        # Case C: Ticket Creation Succeeded
+        if ticket_number:
+            response_text += f" (Reference: {ticket_number})"
+            action_taken = "incident_created"
+        else:
+            # Case D: Ticket Creation Failed (API Error)
+            response_text += " (Note: I failed to create a tracking ticket automatically. Please report this error.)"
+            action_taken = None
 
         return {
             "messages": [AIMessage(content=response_text)],
             "action_taken": action_taken,
             "ticket_number": ticket_number
         }
+        # --- LOGIC FIX END ---
 
-    # --- 4. Edges ( The Logic ) ---
 
-    def should_continue(self, state: AgentState):
-        """
-        Decides: Do we act or end?
-        """
-        last_message = state['messages'][-1].content
-        if "TRIGGER_ACTION:" in last_message:
-            return "execute_action"
-        return END
+$http.post('https://YOUR-APP-URL.azurewebsites.net/chat', payload).then(function(res) {
+      c.isTyping = false;
+      c.sessionId = res.data.session_id;
+      
+      // 1. Show the bot's text response
+      c.messages.push({ text: res.data.response, isUser: false, time: getTime() });
 
-    # --- 5. Build the Graph ---
-
-    def _build_graph(self):
-        workflow = StateGraph(AgentState)
-        
-        # Add Nodes
-        workflow.add_node("agent", self.call_model)
-        workflow.add_node("execute_action", self.execute_action)
-        
-        # Set Entry Point
-        workflow.set_entry_point("agent")
-        
-        # Add Conditional Edge
-        workflow.add_conditional_edges(
-            "agent",
-            self.should_continue,
-            {
-                "execute_action": "execute_action",
-                END: END
-            }
-        )
-        
-        # Action always ends the turn
-        workflow.add_edge("execute_action", END)
-        
-        return workflow.compile()
-
-    # --- 6. Public Method (Called by App.py) ---
-    def process_request(self, user_message):
-        # Initialize state with the user message
-        inputs = {
-            "messages": [HumanMessage(content=user_message)],
-            "user_id": self.user_id,
-            "action_taken": None,
-            "ticket_number": None
-        }
-        
-        # Run the Graph
-        result = self.workflow.invoke(inputs)
-        
-        # Extract Final Response
-        final_msg = result['messages'][-1].content
-        
-        return {
-            "text": final_msg,
-            "action_taken": result.get("action_taken"),
-            "ticket_number": result.get("ticket_number")
-        }
+      // 2. ONLY show the "Ticket Created" system message if ticket_number exists and is not null
+      if(res.data.action_taken === 'incident_created' && res.data.ticket_number) {
+        c.messages.push({ 
+            text: "✅ Ticket " + res.data.ticket_number + " has been created.", 
+            isUser: false, 
+            time: getTime() 
+        });
+      }
+      
+      scrollToBottom();
+    }, function(err) {
+      // ... error handling ...
+    });
