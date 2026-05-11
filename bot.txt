@@ -1,173 +1,104 @@
-Html
-
-<div class="bot-container">
-
-  <!-- 1. The Launcher Button (Visible when chat is closed) -->
-  <button ng-show="!c.chatOpen" class="launcher-btn shadow" ng-click="c.toggleChat()">
-    <i class="fa fa-comments"></i> Support
-  </button>
-
-  <!-- 2. The Chat Window (Visible when chat is open) -->
-  <div ng-show="c.chatOpen" class="panel panel-primary chat-window shadow">
-    
-    <!-- Header with Minimize Button -->
-    <div class="panel-heading chat-header">
-      <h3 class="panel-title">
-        <i class="fa fa-robot"></i> IT Assistant
-      </h3>
-      <button class="minimize-btn" ng-click="c.toggleChat()">
-        <i class="fa fa-minus"></i>
-      </button>
-    </div>
-
-    <!-- Your Existing Chat Body -->
-    <div class="panel-body chat-body" id="chatContainer">
-      <div ng-repeat="msg in c.messages" class="message-row" ng-class="{'text-right': msg.author=='User'}">
-        <div class="message-bubble" ng-class="msg.author=='User' ? 'bg-primary text-white' : 'bg-light'">
-          {{msg.text}}
-        </div>
-      </div>
-    </div>
-
-    <!-- Your Existing Input Area -->
-    <div class="panel-footer">
-      <form ng-submit="c.sendMessage()">
-        <div class="input-group">
-          <input type="text" class="form-control" ng-model="c.userText" placeholder="Type here...">
-          <span class="input-group-btn">
-            <button class="btn btn-primary" type="submit">Send</button>
-          </span>
-        </div>
-      </form>
-    </div>
-    
-  </div>
-</div>
-
-CSS:
-
-/* Fix the position to bottom right */
-.bot-container {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  z-index: 9999; /* Stay on top of everything */
-  font-family: SourceSansPro, "Helvetica Neue", Arial;
-}
-
-/* The Round Launcher Button */
-.launcher-btn {
-  width: 60px;
-  height: 60px;
-  border-radius: 30px; /* Makes it round */
-  background-color: #2e8ef8;
-  color: white;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  transition: transform 0.2s;
-}
-
-.launcher-btn:hover {
-  transform: scale(1.1);
-}
-
-/* The Main Window */
-.chat-window {
-  width: 350px;
-  height: 500px;
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 0;
-}
-
-/* Header Styling */
-.chat-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-}
-
-.minimize-btn {
-  background: none;
-  border: none;
-  color: white;
-  font-weight: bold;
-}
-
-/* Scrollable Chat Area */
-.chat-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
-  background: #fff;
-}
-
-/* Chat Bubbles */
-.message-row { margin-bottom: 10px; }
-.message-bubble {
-  display: inline-block;
-  padding: 8px 12px;
-  border-radius: 15px;
-  max-width: 80%;
-}
-.bg-light { background-color: #f1f1f1; color: black; }
-.text-white { color: white; }
-.shadow { box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-
-Client:
-
-api.controller = function($scope, $timeout) {
-  var c = this;
-  
-  // 1. Initialize State (False means start minimized)
-  c.chatOpen = false; 
-
-  c.messages = [
-    { text: "Hello! I can help with Password Reset, Duo, or VPN. What do you need?", author: "Bot" }
-  ];
-  c.userText = "";
-
-  // 2. Add the Toggle Function
-  c.toggleChat = function() {
-    c.chatOpen = !c.chatOpen;
-    
-    // Auto-scroll to bottom when opening
-    if(c.chatOpen) {
-        $timeout(scrollToBottom, 100);
-    }
-  };
-
-  c.sendMessage = function() {
-    if (!c.userText) return;
-
-    // Add User Message
-    c.messages.push({ text: c.userText, author: "User" });
-    var userMsg = c.userText;
-    c.userText = "";
-    
-    scrollToBottom();
-
-    // API Call to your Azure Bot
-    var botURL = "https://YOUR-APP-NAME.azurewebsites.net/chat"; 
-
-    $scope.server.get({
-        action: 'chat_proxy',
-        message: userMsg,
-        endpoint: botURL
-    }).then(function(r) {
-        c.messages.push({ text: r.data.answer, author: "Bot" });
-        scrollToBottom();
-    });
-  };
-
-  function scrollToBottom() {
-    $timeout(function() {
-      var chatContainer = document.getElementById("chatContainer");
-      if(chatContainer) {
-          chatContainer.scrollTop = chatContainer.scrollHeight;
+[
+  {
+    "category": "STREET STYLE",
+    "templates": [
+      {
+        "title": "Urban Trendsetter",
+        "subtitle": "Bold Gen-Z streetwear aesthetic",
+        "ratio": "4:5",
+        "prompt": "KIM in modern luxury streetwear, oversized jacket, cargo pants, trendy sneakers, walking through downtown city streets, cinematic urban lighting, confident pose, premium fashion editorial photography, Instagram street style aesthetic"
+      },
+      {
+        "title": "City Night Fashion",
+        "subtitle": "Modern nightlife fashion campaign",
+        "ratio": "9:16",
+        "prompt": "KIM in stylish black street fashion, neon-lit city background, luxury nightlife aesthetic, cinematic shadows, fashionable urban pose, premium editorial photography, trendy Gen-Z fashion campaign"
       }
-    }, 0);
+    ]
+  },
+  {
+    "category": "EDITORIAL",
+    "templates": [
+      {
+        "title": "Luxury Editorial",
+        "subtitle": "High-fashion magazine inspired shoot",
+        "ratio": "3:4",
+        "prompt": "KIM in elegant luxury designer outfit, editorial studio setup, dramatic soft lighting, premium Vogue-inspired aesthetic, confident expression, cinematic shadows, luxury fashion campaign photography"
+      },
+      {
+        "title": "Minimal Chic",
+        "subtitle": "Clean premium editorial styling",
+        "ratio": "4:5",
+        "prompt": "KIM in minimalist neutral-tone fashion, soft beige studio background, elegant posture, clean luxury aesthetic, high-end editorial fashion photography, soft cinematic lighting"
+      }
+    ]
+  },
+  {
+    "category": "SEASONAL",
+    "templates": [
+      {
+        "title": "Fall Collection",
+        "subtitle": "Warm autumn fashion storytelling",
+        "ratio": "16:9",
+        "prompt": "KIM wearing premium autumn layered outfit, cozy city environment, warm earthy tones, cinematic seasonal lighting, luxury retail campaign photography, Macy's fall collection aesthetic"
+      },
+      {
+        "title": "Winter Luxe",
+        "subtitle": "Luxury winter campaign aesthetic",
+        "ratio": "4:5",
+        "prompt": "KIM in elegant winter coat and scarf, snowy luxury city environment, warm cinematic lighting, premium seasonal retail photography, cozy luxury fashion campaign"
+      }
+    ]
+  },
+  {
+    "category": "SOCIAL MEDIA",
+    "templates": [
+      {
+        "title": "Influencer Lifestyle",
+        "subtitle": "Instagram-ready creator content",
+        "ratio": "9:16",
+        "prompt": "KIM creating influencer-style fashion content in trendy cafe, natural daylight photography, authentic social media aesthetic, stylish casual outfit, modern creator lifestyle vibe, Instagram-ready composition"
+      },
+      {
+        "title": "Mirror Selfie Vibe",
+        "subtitle": "Trendy social fashion aesthetic",
+        "ratio": "9:16",
+        "prompt": "KIM taking fashionable mirror selfie in luxury modern apartment, trendy casual outfit, authentic TikTok aesthetic, natural lighting, premium lifestyle content creation style"
+      }
+    ]
+  },
+  {
+    "category": "LUXURY",
+    "templates": [
+      {
+        "title": "Golden Hour Elegance",
+        "subtitle": "Premium luxury lifestyle campaign",
+        "ratio": "16:9",
+        "prompt": "KIM in elegant luxury evening wear, golden hour sunlight, luxury rooftop environment, cinematic fashion photography, premium jewelry styling, sophisticated high-end lifestyle aesthetic"
+      },
+      {
+        "title": "Modern Glamour",
+        "subtitle": "Sophisticated luxury fashion portrait",
+        "ratio": "3:4",
+        "prompt": "KIM in sophisticated luxury black dress, dramatic cinematic studio lighting, premium glamour aesthetic, confident editorial pose, luxury fashion magazine photography"
+      }
+    ]
+  },
+  {
+    "category": "PRODUCT SHOWCASE",
+    "templates": [
+      {
+        "title": "Handbag Spotlight",
+        "subtitle": "Luxury accessory-focused campaign",
+        "ratio": "4:5",
+        "prompt": "KIM showcasing premium designer handbag, luxury retail photography setup, elegant fashion styling, soft studio lighting, product-focused composition, high-end Macy's campaign aesthetic"
+      },
+      {
+        "title": "Sneaker Culture",
+        "subtitle": "Modern footwear lifestyle campaign",
+        "ratio": "16:9",
+        "prompt": "KIM styling trendy premium sneakers with modern streetwear outfit, urban background, fashionable dynamic pose, lifestyle retail photography, sneaker campaign aesthetic"
+      }
+    ]
   }
-};
+]
